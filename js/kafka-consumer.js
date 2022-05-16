@@ -1,19 +1,19 @@
 module.exports = function(RED) {
-    const { Kafka } = require('kafkajs'); 
+    const { Kafka } = require('kafkajs');
     const { v4: uuidv4 } = require('uuid');
 
     function KafkajsConsumerNode(config) {
         RED.nodes.createNode(this,config);
         var node = this;
-            
-        let client = RED.nodes.getNode(config.client);    
-        
+
+        let client = RED.nodes.getNode(config.client);
+
         if(!client){
             return;
         }
 
         const kafka = new Kafka(client.options)
-        
+
         let consumerOptions = new Object();
         consumerOptions.groupId = config.groupid ? config.groupid : "kafka_js_" + uuidv4();
 
@@ -36,7 +36,7 @@ module.exports = function(RED) {
             subscribeOptions.fromBeginning = config.frombeginning;
 
             runOptions.autoCommitInterval =  config.autocommitinterval;
-            runOptions.autoCommitThreshold =  config.autocommitthreshold; 
+            runOptions.autoCommitThreshold =  config.autocommitthreshold;
         }
 
 
@@ -57,11 +57,11 @@ module.exports = function(RED) {
                 node.lastMessageTime = new Date().getTime();
                 node.status({fill:"green",shape:"ring",text:"Ready"});
             }
-    
+
             node.onDisconnect = function (){
                 node.status({fill:"red",shape:"ring",text:"Offline"});
             }
-    
+
             node.onRequestTimeout = function (){
                 node.status({fill:"red",shape:"ring",text:"Timeout"});
             }
@@ -70,38 +70,42 @@ module.exports = function(RED) {
                 node.error("Kafka Consumer Error", e.message);
                 node.status({fill:"red",shape:"ring",text:"Error"});
             }
-    
+
             node.onMessage = function(topic, partition, message){
                 node.lastMessageTime = new Date().getTime();
                 var payload = new Object();
                 payload.topic = topic;
                 payload.partition = partition;
-                
+
                 payload.payload = new Object();
                 payload.payload = message;
-                
+
                 payload.payload.key= message.key ? message.key.toString() : null;
-                payload.payload.value = message.value.toString();
+                if (message.value instanceof Buffer && config.allowbinaryvaluepayload) {
+                    payload.payload.value = message.value;
+                } else {
+                    payload.payload.value = message.value.toString();
+                }
 
                 for(const [key, value] of Object.entries(payload.payload.headers)){
                     payload.payload.headers[key] = value.toString();
                 }
-                
-                node.send(payload);	
+
+                node.send(payload);
                 node.status({fill:"blue",shape:"ring",text:"Reading"});
             }
-    
+
             function checkLastMessageTime() {
                 if(node.lastMessageTime != null){
                     timeDiff = new Date().getTime() - node.lastMessageTime;
                     if(timeDiff > 5000){
                         node.status({fill:"yellow",shape:"ring",text:"Idle"});
                     }
-                }   
+                }
             }
-              
+
             node.interval = setInterval(checkLastMessageTime, 1000);
-    
+
             node.consumer.on(node.consumer.events.CONNECT, node.onConnect);
             node.consumer.on(node.consumer.events.DISCONNECT, node.onDisconnect);
             node.consumer.on(node.consumer.events.REQUEST_TIMEOUT, node.onRequestTimeout);

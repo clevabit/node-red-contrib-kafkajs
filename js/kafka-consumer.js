@@ -81,7 +81,7 @@ module.exports = function(RED) {
                 payload.payload = message;
 
                 payload.payload.key= message.key ? message.key.toString() : null;
-                if (message.value instanceof Buffer && config.allowbinaryvaluepayload) {
+                if (message.value instanceof Buffer && config.advancedoptions && config.allowbinaryvaluepayload) {
                     payload.payload.value = message.value;
                 } else {
                     payload.payload.value = message.value.toString();
